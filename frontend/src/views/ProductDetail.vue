@@ -40,7 +40,7 @@
             <!-- Main Image (click to zoom) -->
             <div
               class="bg-white rounded-2xl overflow-hidden border border-gray-200 aspect-square mb-3 relative group cursor-zoom-in"
-              @click="openLightbox(currentImage)"
+              @click="openLightbox(currentImageIndex)"
             >
               <img
                 v-if="currentImage"
@@ -62,12 +62,12 @@
               </div>
             </div>
 
-            <!-- Thumbnails -->
+            <!-- Thumbnails（多图时展示） -->
             <div v-if="product.images && product.images.length > 1" class="flex gap-2 overflow-x-auto pb-1">
               <button
-                v-for="img in product.images"
+                v-for="(img, idx) in product.images"
                 :key="img.id"
-                @click="currentImage = img.image_path"
+                @click="currentImageIndex = idx; currentImage = img.image_path"
                 :class="['flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors',
                   currentImage === img.image_path ? 'border-primary-500' : 'border-gray-200 hover:border-gray-400']"
               >
@@ -174,12 +174,16 @@
 
             <!-- CTA Button -->
             <div class="pt-2">
-              <RouterLink
-                to="/contact"
-                class="inline-flex items-center justify-center bg-primary-600 hover:bg-primary-700 text-white font-semibold text-sm px-8 py-3.5 rounded-xl transition-colors"
+              <a
+                href="tel:+8613535717734"
+                class="inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold text-sm px-8 py-3.5 rounded-xl transition-colors"
               >
-                tel：+86 13535717734
-              </RouterLink>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                </svg>
+                +86 13535717734
+              </a>
             </div>
 
           </div>
@@ -188,56 +192,20 @@
     </div>
 
     <!-- ===== Lightbox ===== -->
-    <Transition name="lightbox">
-      <div
-        v-if="lightboxSrc"
-        class="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
-        @click.self="closeLightbox"
-      >
-        <div class="relative max-w-5xl w-full flex items-center justify-center">
-          <img
-            :src="`/uploads/${lightboxSrc}`"
-            class="max-h-[90vh] max-w-full object-contain rounded-lg shadow-2xl select-none"
-            @click.stop
-          />
-          <!-- Close button -->
-          <button
-            @click="closeLightbox"
-            class="absolute top-0 right-0 -mt-10 -mr-2 w-9 h-9 bg-white/20 hover:bg-white/40 text-white rounded-full flex items-center justify-center transition-colors"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
-          <!-- Prev / Next arrows -->
-          <button
-            v-if="allImages.length > 1"
-            @click="prevImage"
-            class="absolute left-0 -ml-12 w-10 h-10 bg-white/20 hover:bg-white/40 text-white rounded-full flex items-center justify-center transition-colors"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-            </svg>
-          </button>
-          <button
-            v-if="allImages.length > 1"
-            @click="nextImage"
-            class="absolute right-0 -mr-12 w-10 h-10 bg-white/20 hover:bg-white/40 text-white rounded-full flex items-center justify-center transition-colors"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </Transition>
+    <VueEasyLightbox
+      :visible="lightboxVisible"
+      :imgs="lightboxImgs"
+      :index="lightboxIndex"
+      @hide="lightboxVisible = false"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app.js'
+import VueEasyLightbox from 'vue-easy-lightbox'
 import api from '@/api/index.js'
 
 const route = useRoute()
@@ -248,43 +216,26 @@ const locale = computed(() => appStore.locale)
 const product = ref(null)
 const loading = ref(true)
 const currentImage = ref(null)
+const currentImageIndex = ref(0)
 const selectedSubstrate = ref(null)
 const selectedSpec = ref(null)
 const selectedThickness = ref(null)
 const paramsOpen = ref(true)
 
-// Lightbox
-const lightboxSrc = ref(null)
-const allImages = computed(() => product.value?.images?.map(i => i.image_path) || (product.value?.cover_image ? [product.value.cover_image] : []))
+// Lightbox (vue-easy-lightbox)
+const lightboxVisible = ref(false)
 const lightboxIndex = ref(0)
+const lightboxImgs = computed(() =>
+  product.value?.images?.length
+    ? product.value.images.map(i => `/uploads/${i.image_path}`)
+    : product.value?.cover_image ? [`/uploads/${product.value.cover_image}`] : []
+)
 
-function openLightbox(src) {
-  if (!src) return
-  lightboxSrc.value = src
-  lightboxIndex.value = allImages.value.indexOf(src)
+function openLightbox(idx) {
+  if (!lightboxImgs.value.length) return
+  lightboxIndex.value = idx ?? 0
+  lightboxVisible.value = true
 }
-function closeLightbox() {
-  lightboxSrc.value = null
-}
-function prevImage() {
-  lightboxIndex.value = (lightboxIndex.value - 1 + allImages.value.length) % allImages.value.length
-  lightboxSrc.value = allImages.value[lightboxIndex.value]
-  currentImage.value = lightboxSrc.value
-}
-function nextImage() {
-  lightboxIndex.value = (lightboxIndex.value + 1) % allImages.value.length
-  lightboxSrc.value = allImages.value[lightboxIndex.value]
-  currentImage.value = lightboxSrc.value
-}
-
-function handleKeydown(e) {
-  if (!lightboxSrc.value) return
-  if (e.key === 'Escape') closeLightbox()
-  if (e.key === 'ArrowLeft') prevImage()
-  if (e.key === 'ArrowRight') nextImage()
-}
-onMounted(() => window.addEventListener('keydown', handleKeydown))
-onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 
 const hasParams = computed(() => {
   const p = product.value
@@ -299,8 +250,10 @@ async function fetchProduct() {
 
     if (data.images && data.images.length > 0) {
       currentImage.value = data.images[0].image_path
+      currentImageIndex.value = 0
     } else if (data.cover_image) {
       currentImage.value = data.cover_image
+      currentImageIndex.value = 0
     }
 
     if (data.substrates?.length)  selectedSubstrate.value  = data.substrates[0]
@@ -361,7 +314,4 @@ onMounted(fetchProduct)
   max-height: 500px;
 }
 
-/* Lightbox animation */
-.lightbox-enter-active, .lightbox-leave-active { transition: opacity 0.2s ease; }
-.lightbox-enter-from, .lightbox-leave-to { opacity: 0; }
 </style>

@@ -43,7 +43,7 @@
           <tr v-else-if="products.length === 0">
             <td colspan="7" class="py-10 text-center text-gray-400">暂无产品</td>
           </tr>
-          <tr v-for="p in products" :key="p.id" class="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+          <tr v-for="(p, idx) in products" :key="p.id" class="border-b border-gray-50 hover:bg-gray-50 transition-colors">
             <td class="px-4 py-3 text-gray-400 text-xs">{{ p.id }}</td>
             <td class="px-4 py-3">
               <div class="w-10 h-10 rounded-lg overflow-hidden bg-gray-100">
@@ -61,7 +61,18 @@
                 {{ p.status === 1 ? '上架' : '下架' }}
               </span>
             </td>
-            <td class="px-4 py-3 text-gray-400 text-xs">{{ p.sort_order }}</td>
+            <!-- 排序箭头 -->
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <button @click="reorderProduct(p, 'up')" :disabled="idx === 0 || reordering === p.id" class="sort-btn" title="上移">
+                  <img :src="idx === 0 ? iconUpD : iconUpA" style="width:18px;height:18px;display:block;" alt="上移" />
+                </button>
+                <button @click="reorderProduct(p, 'down')" :disabled="idx === products.length - 1 || reordering === p.id" class="sort-btn" title="下移">
+                  <img :src="idx === products.length - 1 ? iconDownD : iconDownA" style="width:18px;height:18px;display:block;" alt="下移" />
+                </button>
+                <span v-if="reordering === p.id" class="w-3 h-3 border border-primary-400 border-t-transparent rounded-full animate-spin"></span>
+              </div>
+            </td>
             <td class="px-4 py-3">
               <div class="flex items-center gap-2">
                 <RouterLink :to="`/admin/products/${p.id}/edit`" class="text-primary-600 hover:text-primary-700 text-xs font-medium">编辑</RouterLink>
@@ -92,6 +103,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '@/api/index.js'
+import iconUpA   from '@/assets/images/icon-up-a.png'
+import iconUpD   from '@/assets/images/icon-up-d.png'
+import iconDownA from '@/assets/images/icon-down-a.png'
+import iconDownD from '@/assets/images/icon-down-d.png'
 
 const products = ref([])
 const categories = ref([])
@@ -101,6 +116,7 @@ const page = ref(1)
 const lastPage = ref(1)
 const search = ref('')
 const categoryFilter = ref('')
+const reordering = ref(null)
 
 let debounceTimer = null
 function debouncedFetch() {
@@ -123,6 +139,20 @@ async function fetchProducts(reset = false) {
     console.error(e)
   } finally {
     loading.value = false
+  }
+}
+
+async function reorderProduct(p, direction) {
+  reordering.value = p.id
+  try {
+    await api.adminReorderProduct(p.id, direction)
+  } catch (e) {
+    if (e.response?.status !== 400) {
+      alert('排序失败：' + (e.response?.data?.message || e.message))
+    }
+  } finally {
+    reordering.value = null
+    await fetchProducts()
   }
 }
 
@@ -152,4 +182,5 @@ onMounted(async () => {
 .btn-primary {
   @apply inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-2 rounded-lg transition-colors;
 }
+.sort-btn { @apply p-0.5 rounded hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
 </style>

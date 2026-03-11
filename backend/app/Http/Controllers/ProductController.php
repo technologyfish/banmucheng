@@ -176,7 +176,7 @@ class ProductController extends Controller
 
         // Delete physical image files
         foreach ($product->images as $image) {
-            $filePath = public_path('uploads/' . $image->image_path);
+            $filePath = base_path('public/uploads/' . $image->image_path);
             if (file_exists($filePath)) {
                 unlink($filePath);
             }
@@ -192,13 +192,59 @@ class ProductController extends Controller
     {
         $image = ProductImage::findOrFail($id);
 
-        $filePath = public_path('uploads/' . $image->image_path);
+        $filePath = base_path('public/uploads/' . $image->image_path);
         if (file_exists($filePath)) {
             unlink($filePath);
         }
 
         $image->delete();
         return response()->json(['message' => 'Image deleted']);
+    }
+
+    public function reorder(Request $request, $id)
+    {
+        $this->validate($request, [
+            'direction' => 'required|in:up,down',
+        ]);
+
+        $product   = Product::findOrFail($id);
+        $direction = $request->input('direction');
+
+        // 1. 取全部产品（全局排序，与 adminIndex 展示顺序一致）
+        $all = Product::orderBy('sort_order')->orderByDesc('created_at')->get();
+
+        // 2. 归一化 sort_order（0,1,2,...），消除重复值
+        foreach ($all as $i => $p) {
+            if ($p->sort_order !== $i) {
+                $p->sort_order = $i;
+                $p->save();
+            }
+        }
+        $product->refresh();
+
+        // 3. 找相邻产品
+        if ($direction === 'up') {
+            $sibling = Product::where('sort_order', '<', $product->sort_order)
+                ->orderByDesc('sort_order')
+                ->first();
+        } else {
+            $sibling = Product::where('sort_order', '>', $product->sort_order)
+                ->orderBy('sort_order')
+                ->first();
+        }
+
+        if (!$sibling) {
+            return response()->json(['message' => '已到边界'], 400);
+        }
+
+        // 4. 交换 sort_order
+        $tmp                 = $product->sort_order;
+        $product->sort_order = $sibling->sort_order;
+        $sibling->sort_order = $tmp;
+        $product->save();
+        $sibling->save();
+
+        return response()->json(['message' => 'ok']);
     }
 
     public function sortImages(Request $request)

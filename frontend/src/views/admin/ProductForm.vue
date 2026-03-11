@@ -111,7 +111,10 @@
 
       <!-- 产品图片 -->
       <div ref="imageSectionRef" class="p-5">
-        <label class="form-label">产品图片 <span class="text-red-500">*</span></label>
+        <div class="flex items-baseline gap-3 mb-1">
+          <label class="form-label !mb-0">产品图片 <span class="text-red-500">*</span></label>
+          <span class="text-xs text-red-400">(上传图片大小最大不得超过 10MB）</span>
+        </div>
         <p v-if="imageError" class="text-red-500 text-sm mb-3 flex items-center gap-1">
           <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -119,52 +122,99 @@
           {{ imageError }}
         </p>
 
-        <!-- 封面预览 -->
-        <div v-if="form.cover_image" class="mb-3">
-          <p class="text-xs text-gray-400 mb-1">当前封面</p>
-          <div class="w-28 h-28 rounded-xl overflow-hidden border border-gray-200">
-            <img :src="`/uploads/${form.cover_image}`" class="w-full h-full object-cover" />
-          </div>
-        </div>
+        <!-- 图片列表：已有图片 + 新上传 + 上传按钮卡片（同一行对齐） -->
+        <div class="flex flex-wrap gap-3 items-start">
 
-        <!-- 已上传图片 -->
-        <div v-if="existingImages.length" class="flex flex-wrap gap-3 mb-4">
-          <div v-for="img in existingImages" :key="img.id" class="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group">
-            <img :src="`/uploads/${img.image_path}`" class="w-full h-full object-cover" />
-            <button type="button" @click="setCover(img.image_path)"
-              :class="['absolute top-1 left-1 text-xs px-1.5 py-0.5 rounded-full transition',
-                form.cover_image === img.image_path ? 'bg-primary-600 text-white' : 'bg-white/80 text-gray-600 hover:bg-primary-600 hover:text-white']"
-              title="设为封面">★</button>
-            <button type="button" @click="removeExistingImage(img)"
-              class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
-          </div>
-        </div>
-
-        <!-- 上传区域 -->
-        <div class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-primary-400 transition-colors cursor-pointer"
-          @click="triggerFileInput" @dragover.prevent @drop.prevent="handleDrop">
-          <input ref="fileInput" type="file" accept="image/*" multiple class="hidden" @change="handleFileChange" />
-          <svg class="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
-              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-          </svg>
-          <p class="text-sm text-gray-500">点击或拖拽上传图片</p>
-          <p class="text-xs text-gray-400 mt-1">支持 JPG、PNG、WebP，最大 10MB</p>
-        </div>
-
-        <!-- 新上传预览 -->
-        <div v-if="newImagePreviews.length" class="flex flex-wrap gap-3 mt-4">
-          <div v-for="(preview, index) in newImagePreviews" :key="index"
-            class="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group">
-            <img :src="preview.url" class="w-full h-full object-cover" />
-            <div v-if="preview.uploading" class="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          <!-- 已有图片 -->
+          <div v-for="(img, idx) in existingImages" :key="img.id" class="group flex flex-col w-28">
+            <div class="relative w-28 h-28 rounded-xl overflow-hidden border border-gray-200 cursor-zoom-in" @click="openLightbox(idx)">
+              <img :src="`/uploads/${img.image_path}`" class="w-full h-full object-cover" />
+              <!-- 封面标记 -->
+              <span v-if="form.cover_image === img.image_path"
+                class="absolute top-1 left-1 text-xs bg-primary-600 text-white px-1.5 py-0.5 rounded-full">封面</span>
+              <!-- 悬停时显示设为封面 -->
+              <button v-if="form.cover_image !== img.image_path"
+                type="button" @click.stop="setCover(img.image_path)"
+                class="absolute bottom-0 inset-x-0 bg-black/50 text-white text-xs py-1 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                设为封面
+              </button>
+              <!-- 删除按钮 -->
+              <button type="button" @click.stop="removeExistingImage(img)"
+                class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
             </div>
-            <button v-else type="button" @click="removeNewImage(index)"
-              class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+            <!-- 仅封面图显示取消封面（纯文字，无背景） -->
+            <div v-if="form.cover_image === img.image_path" class="text-center mt-1">
+              <button type="button" @click="unsetCover()"
+                class="text-xs text-gray-400 hover:text-red-500 hover:underline">
+                取消封面
+              </button>
+            </div>
           </div>
+
+          <!-- 新上传图片（已上传到服务器，等待保存） -->
+          <div v-for="(preview, index) in newImagePreviews" :key="'new-' + index" class="group flex flex-col w-28">
+            <div class="relative w-28 h-28 rounded-xl overflow-hidden border border-gray-200">
+              <img :src="preview.url" class="w-full h-full object-cover" />
+              <!-- 上传中遮罩（显示进度） -->
+              <div v-if="preview.uploading" class="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-1.5">
+                <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span class="text-white text-xs font-medium">{{ preview.progress > 0 ? preview.progress + '%' : '上传中' }}</span>
+                <!-- 进度条 -->
+                <div class="w-16 h-1 bg-white/30 rounded-full overflow-hidden">
+                  <div class="h-full bg-white rounded-full transition-all duration-200" :style="{ width: preview.progress + '%' }"></div>
+                </div>
+              </div>
+              <!-- 上传失败提示 -->
+              <div v-else-if="preview.error" class="absolute inset-0 bg-red-500/60 flex items-center justify-center">
+                <span class="text-white text-xs">失败</span>
+              </div>
+              <!-- 删除按钮 -->
+              <button v-if="!preview.uploading" type="button" @click="removeNewImage(index)"
+                class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+              <!-- 设为封面（悬停，仅已上传成功的） -->
+              <button v-if="!preview.uploading && !preview.error && preview.path && form.cover_image !== preview.path"
+                type="button" @click.stop="setCover(preview.path)"
+                class="absolute bottom-0 inset-x-0 bg-black/50 text-white text-xs py-1 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                设为封面
+              </button>
+              <!-- 封面标记 -->
+              <span v-if="preview.path && form.cover_image === preview.path"
+                class="absolute top-1 left-1 text-xs bg-primary-600 text-white px-1.5 py-0.5 rounded-full">封面</span>
+            </div>
+            <!-- 封面标记文字 -->
+            <div v-if="preview.path && form.cover_image === preview.path" class="text-center mt-1">
+              <button type="button" @click="unsetCover()"
+                class="text-xs text-gray-400 hover:text-red-500 hover:underline">
+                取消封面
+              </button>
+            </div>
+          </div>
+
+          <!-- 上传按钮卡片 + 下方提示 -->
+          <div class="flex flex-col items-center" style="width:112px">
+            <div class="w-28 h-28 border-2 border-dashed rounded-xl flex flex-col items-center justify-center hover:border-primary-400 transition-colors cursor-pointer"
+              :class="sizeError ? 'border-red-300' : 'border-gray-200'"
+              @click="triggerFileInput" @dragover.prevent @drop.prevent="handleDrop">
+              <input ref="fileInput" type="file" accept="image/*" multiple class="hidden" @change="handleFileChange" />
+              <svg class="w-7 h-7 mb-1" :class="sizeError ? 'text-red-300' : 'text-gray-300'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              <p class="text-xs text-gray-500">点击上传</p>
+            </div>
+            <!-- 大小超限时显示错误文件名提示 -->
+            <p v-if="sizeError" class="mt-1.5 text-xs text-red-500 text-center leading-tight w-28 break-all">{{ sizeError }}</p>
+          </div>
+
         </div>
-        <p class="text-xs text-gray-400 mt-2">点击图片上的 ★ 设为封面</p>
+
+        <!-- 图片预览灯箱 -->
+        <VueEasyLightbox
+          :visible="lightboxVisible"
+          :imgs="lightboxImgs"
+          :index="lightboxIndex"
+          @hide="lightboxVisible = false"
+        />
       </div>
 
       <!-- 上架状态 -->
@@ -193,9 +243,9 @@
       <div class="p-6 flex flex-col items-center gap-3">
         <p v-if="saveError && !imageError" class="text-red-500 text-sm">{{ saveError }}</p>
         <p v-if="saveSuccess" class="text-green-600 text-sm">✓ 保存成功！</p>
-        <button type="submit" :disabled="saving || uploading" class="btn-primary px-16 py-2.5 text-base">
-          <span v-if="saving || uploading" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 inline-block"></span>
-          {{ uploading ? '上传图片中...' : '保存产品' }}
+        <button type="submit" :disabled="saving" class="btn-primary px-16 py-2.5 text-base">
+          <span v-if="saving" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 inline-block"></span>
+          保存产品
         </button>
       </div>
 
@@ -206,6 +256,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import VueEasyLightbox from 'vue-easy-lightbox'
 import api from '@/api/index.js'
 
 const route = useRoute()
@@ -219,9 +270,9 @@ const newImagePreviews = ref([])
 const fileInput = ref(null)
 const imageSectionRef = ref(null)
 const saving = ref(false)
-const uploading = ref(false)
 const saveError = ref('')
 const imageError = ref('')
+const sizeError = ref('')
 const saveSuccess = ref(false)
 
 const substrateOptions = ref([])
@@ -269,8 +320,23 @@ function toggleOption(field, value) {
   else arr.push(value)
 }
 
+// Lightbox
+const lightboxVisible = ref(false)
+const lightboxIndex = ref(0)
+const lightboxImgs = computed(() =>
+  existingImages.value.map(img => `/uploads/${img.image_path}`)
+)
+function openLightbox(idx) {
+  lightboxIndex.value = idx
+  lightboxVisible.value = true
+}
+
 function setCover(path) {
   form.cover_image = path
+}
+
+function unsetCover() {
+  form.cover_image = null
 }
 
 function triggerFileInput() {
@@ -288,16 +354,60 @@ function handleDrop(e) {
   addFiles(files)
 }
 
-function addFiles(files) {
-  files.forEach(file => {
-    const url = URL.createObjectURL(file)
-    newImagePreviews.value.push({ url, file, path: null, uploading: false })
-  })
-  if (files.length) imageError.value = ''
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
+async function addFiles(files) {
+  if (!files.length) return
+  imageError.value = ''
+  sizeError.value = ''
+
+  // 先遍历校验所有文件大小，有超限的立即提示（在上传按钮右侧显示）
+  const oversized = files.filter(f => f.size > MAX_FILE_SIZE)
+  if (oversized.length) {
+    sizeError.value = oversized.map(f => `"${f.name}" 超过 10MB`).join('；')
+  }
+
+  for (const file of files) {
+    // 跳过超限文件
+    if (file.size > MAX_FILE_SIZE) continue
+
+    const previewUrl = URL.createObjectURL(file)
+    // 先 push 进响应式数组，再通过数组索引拿到 Vue 包装后的 proxy，
+    // 直接操作原始对象引用无法触发视图更新
+    const insertIdx = newImagePreviews.value.push(
+      { url: previewUrl, file, path: null, uploading: true, error: false, progress: 0 }
+    ) - 1
+    const preview = newImagePreviews.value[insertIdx]  // reactive proxy
+
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const { data } = await api.uploadImage(fd, (evt) => {
+        if (evt.total) preview.progress = Math.round((evt.loaded / evt.total) * 100)
+      })
+
+      preview.path = data.path
+      preview.uploading = false
+      preview.progress = 100
+      sizeError.value = ''
+      if (!form.cover_image) {
+        form.cover_image = data.path
+      }
+    } catch (err) {
+      preview.uploading = false
+      preview.error = true
+      console.error('Upload failed', err)
+    }
+  }
 }
 
 function removeNewImage(index) {
   URL.revokeObjectURL(newImagePreviews.value[index].url)
+  // 若删除的是当前封面，清除封面
+  const removed = newImagePreviews.value[index]
+  if (removed.path && form.cover_image === removed.path) {
+    form.cover_image = existingImages.value[0]?.image_path || null
+  }
   newImagePreviews.value.splice(index, 1)
 }
 
@@ -314,31 +424,6 @@ async function removeExistingImage(img) {
   }
 }
 
-async function uploadPendingImages() {
-  const pending = newImagePreviews.value.filter(p => !p.path)
-  if (!pending.length) return []
-
-  uploading.value = true
-  const paths = []
-
-  for (const preview of pending) {
-    preview.uploading = true
-    try {
-      const fd = new FormData()
-      fd.append('file', preview.file)
-      const { data } = await api.uploadImage(fd)
-      preview.path = data.path
-      preview.uploading = false
-      paths.push(data.path)
-    } catch (e) {
-      preview.uploading = false
-      console.error('Upload failed', e)
-    }
-  }
-
-  uploading.value = false
-  return paths
-}
 
 async function saveProduct() {
   // 图片必填校验
@@ -355,7 +440,8 @@ async function saveProduct() {
   saveSuccess.value = false
 
   try {
-    const newPaths = await uploadPendingImages()
+    // 图片在选择时已自动上传，直接取已上传成功的路径
+    const newPaths = newImagePreviews.value.filter(p => p.path && !p.error).map(p => p.path)
 
     const allExistingPaths = existingImages.value.map(i => i.image_path)
     if (!form.cover_image && newPaths.length > 0) {

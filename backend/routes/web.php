@@ -64,6 +64,7 @@ $router->group(['prefix' => 'api/admin', 'middleware' => 'auth.admin'], function
     $router->post('products', 'ProductController@store');
     $router->put('products/{id}', 'ProductController@update');
     $router->delete('products/{id}', 'ProductController@destroy');
+    $router->post('products/{id}/reorder', 'ProductController@reorder');
 
     // Images
     $router->delete('product-images/{id}', 'ProductController@deleteImage');

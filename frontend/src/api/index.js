@@ -52,6 +52,7 @@ export default {
   adminCreateProduct: (data)         => api.post('/admin/products', data),
   adminUpdateProduct: (id, data)     => api.put(`/admin/products/${id}`, data),
   adminDeleteProduct: (id)           => api.delete(`/admin/products/${id}`),
+  adminReorderProduct: (id, direction) => api.post(`/admin/products/${id}/reorder`, { direction }),
   adminDeleteImage: (id)             => api.delete(`/admin/product-images/${id}`),
   adminSortImages: (data)            => api.post('/admin/product-images/sort', data),
 
@@ -77,9 +78,11 @@ export default {
   adminUpdateOption: (id, data)      => api.put(`/admin/options/${id}`, data),
   adminDeleteOption: (id)            => api.delete(`/admin/options/${id}`),
 
-  // Upload
-  uploadImage: (formData)            => api.post('/admin/upload', formData, {
+  // Upload（单独设置 120s 超时，避免大图上传超时）
+  uploadImage: (formData, onProgress) => api.post('/admin/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+    onUploadProgress: onProgress,
   }),
 
   // Settings (public)

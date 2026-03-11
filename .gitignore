@@ -5,7 +5,7 @@ backend/vendor/
 frontend/node_modules/
 
 # 前端构建产物（可选，如果不想提交 dist 则取消注释）
- frontend/dist/
+frontend/dist/
 
 # 环境配置（包含数据库密码等敏感信息，绝对不提交）
 backend/.env
